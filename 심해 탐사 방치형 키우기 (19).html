@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>심해 탐사대 : 방치형 키우기</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #030816;
+            color: #ffffff;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .font-title {
+            font-family: 'Black Han Sans', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(8, 22, 45, 0.90);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .click-bubble {
+            position: absolute;
+            pointer-events: none;
+            animation: floatUp 1.2s ease-out forwards;
+            font-family: 'Black Han Sans', cursive;
+            z-index: 60;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-70px) scale(1.3); }
+        }
+        .progress-glow {
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.8);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #030816; }
+        ::-webkit-scrollbar-thumb { background: #0284c7; border-radius: 3px; }
+    </style>
+
+    <!-- Firebase SDK (v11.6.1) -->
+    <script type="module">
+        import { initializeApp as initApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth as getFirebaseAuth, signInAnonymously as authAnon } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore as getFS, 
+            doc as fsDoc, 
+            getDoc as fsGetDoc, 
+            setDoc as fsSetDoc, 
+            deleteDoc as fsDeleteDoc,
+            updateDoc as fsUpdateDoc, 
+            onSnapshot as fsOnSnapshot, 
+            collection as fsCollection, 
+            getDocs as fsGetDocs,
+            serverTimestamp as fsServerTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = 'jihoo-abyss-game';
+        const firebaseConfig = {
+            apiKey: "AIzaSyCaQbpev8D7Kfk1_7IA8E6O6fI2L00yYI4",
+            authDomain: "jihoo-aa4eb.firebaseapp.com",
+            projectId: "jihoo-aa4eb",
+            storageBucket: "jihoo-aa4eb.firebasestorage.app",
+            messagingSenderId: "103773646949",
+            appId: "1:103773646949:web:fb6351d3e6912384a6c4b2",
+            measurementId: "G-Z8HDP01X6Y"
+        };
+
+        let db = null;
+        let auth = null;
+
+        try {
+            const app = initApp(firebaseConfig);
+            auth = getFirebaseAuth(app);
+            db = getFS(app);
+            authAnon(auth).catch(e => console.warn("Anon Auth Error:", e));
+        } catch (e) {
+            console.warn("Firebase Init Error:", e);
+        }
+
+        window.db = db;
+        window.auth = auth;
+        window.appId = appId;
+        window.doc = fsDoc;
+        window.setDoc = fsSetDoc;
+        window.deleteDoc = fsDeleteDoc;
+        window.getDoc = fsGetDoc;
+        window.updateDoc = fsUpdateDoc;
+        window.onSnapshot = fsOnSnapshot;
+        window.collection = fsCollection;
+        window.getDocs = fsGetDocs;
+        window.serverTimestamp = fsServerTimestamp;
+    </script>
+</head>
+<body class="min-h-screen w-screen overflow-x-hidden overflow-y-auto flex flex-col bg-gradient-to-b from-slate-950 via-sky-950 to-blue-950 p-2 sm:p-4 pb-28">
+
+    <!-- Header / Stats Bar -->
+    <header class="w-full max-w-5xl mx-auto glass-panel rounded-2xl p-3 sm:p-4 flex flex-wrap justify-between items-center z-10 gap-2 mb-3">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400 flex items-center justify-center text-sky-400 text-xl shadow-lg">
+                <i class="fa-solid fa-water"></i>
+            </div>
+            <div>
+                <h1 class="text-base sm:text-lg font-bold font-title text-sky-300 tracking-wide flex items-center gap-2 flex-wrap">
+                    심해 탐사대
+                    <button onclick="openAuthModal()" class="text-xs bg-sky-950 border border-sky-500/50 hover:border-cyan-400 px-2 py-0.5 rounded-md text-sky-200 font-normal flex items-center gap-1 transition active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-user text-sky-400"></i>
+                        <span id="displayNickname">로그인 필요</span>
+                        <i class="fa-solid fa-pen text-[10px] text-cyan-400 ml-0.5"></i>
+                    </button>
+                    <!-- 환생 뱃지 -->
+                    <span id="rebirthBadge" class="text-xs bg-amber-500/20 border border-amber-400/60 text-amber-300 font-bold px-2 py-0.5 rounded-md font-title flex items-center gap-1">
+                        <i class="fa-solid fa-rotate text-amber-400"></i>
+                        <span id="rebirthCountDisplay">0환생 (x1)</span>
+                    </span>
+                    <!-- 로그아웃 버튼 -->
+                    <button id="headerLogoutBtn" onclick="logoutAccount()" class="text-xs bg-red-950/80 border border-red-500/50 hover:bg-red-900 px-2 py-0.5 rounded-md text-red-300 font-normal flex items-center gap-1 transition active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-right-from-bracket text-red-400"></i>
+                        <span>로그아웃</span>
+                    </button>
+                    <!-- 1v1 듀얼 배틀 버튼 -->
+                    <button onclick="openDuelModal()" class="text-xs bg-gradient-to-r from-purple-900 to-indigo-900 hover:from-purple-800 hover:to-indigo-800 border border-purple-400/60 px-2.5 py-0.5 rounded-md text-purple-200 font-bold flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-md shadow-purple-500/20">
+                        <i class="fa-solid fa-swords text-amber-300"></i>
+                        <span>1v1 듀얼 배틀</span>
+                    </button>
+                    <span id="adminBadge" class="hidden text-[10px] bg-red-600 border border-red-400 text-white font-bold px-1.5 py-0.5 rounded-md animate-pulse">
+                        <i class="fa-solid fa-shield-halved mr-1"></i>어드민
+                    </span>
+                </h1>
+                <div class="text-xs text-gray-400 flex items-center gap-1.5 mt-0.5">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>상태:</span>
+                    <strong id="totalPlayersCount" class="text-emerald-400 font-bold">동기화 완료</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resource Displays & Code Input Button -->
+        <div class="flex items-center gap-2 sm:gap-4 ml-auto">
+            <button onclick="openCodeModal()" class="px-3 py-2 bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 border border-cyan-400/60 rounded-xl text-cyan-200 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-lg shadow-cyan-500/20">
+                <i class="fa-solid fa-key text-amber-300"></i>
+                <span>코드 입력</span>
+            </button>
+
+            <div class="flex items-center gap-3 sm:gap-6 bg-slate-950/70 px-4 py-2 rounded-xl border border-sky-900/60">
+                <div class="text-right">
+                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">보유 심해 진주</div>
+                    <div class="text-base sm:text-xl font-black text-amber-300 font-title flex items-center justify-end gap-1">
+                        <i class="fa-solid fa-gem text-amber-400 text-xs sm:text-sm"></i>
+                        <span id="pearlsDisplay">0</span>
+                    </div>
+                </div>
+                <div class="h-7 w-[1px] bg-slate-800"></div>
+                <div class="text-right">
+                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">초당 자동 수집 (CPS)</div>
+                    <div class="text-base sm:text-xl font-black text-sky-300 font-title flex items-center justify-end gap-1">
+                        <i class="fa-solid fa-bolt text-sky-400 text-xs sm:text-sm"></i>
+                        <span id="cpsDisplay">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="hidden w-full max-w-5xl mx-auto glass-panel rounded-2xl p-3 mb-3 border-2 border-red-500/60 bg-red-950/30">
+        <div class="text-xs font-bold text-red-400 mb-2 flex items-center gap-2 font-title">
+            <i class="fa-solid fa-crown text-amber-400"></i>
+            관리자 전용 특수 권한 컨트롤 패널 (큐티 냉면 박지후 전용)
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="adminAddPearls(100000)" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/40 border border-amber-400 rounded-lg text-amber-300 text-xs font-bold transition">
+                +10만 진주
+            </button>
+            <button onclick="adminAddPearls(100000000)" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/40 border border-amber-400 rounded-lg text-amber-300 text-xs font-bold transition">
+                +1억 진주
+            </button>
+            <button onclick="adminAddClick(1000)" class="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/40 border border-sky-400 rounded-lg text-sky-300 text-xs font-bold transition">
+                +1,000 클릭 파워
+            </button>
+            <button onclick="adminAddCps(5000)" class="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-400 rounded-lg text-emerald-300 text-xs font-bold transition">
+                +5,000 CPS
+            </button>
+            <button onclick="openAdminCodeModal()" class="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/40 border border-purple-400 rounded-lg text-purple-300 text-xs font-bold transition flex items-center gap-1">
+                <i class="fa-solid fa-ticket text-amber-300"></i>
+                <span>쿠폰 코드 생성/관리</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <main class="flex-1 w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 mb-4">
+        
+        <!-- Left Column: Clicker & Depth Zone -->
+        <section class="md:col-span-5 glass-panel rounded-2xl p-4 flex flex-col justify-between items-center relative min-h-[380px]">
+            <div class="w-full flex justify-between items-center text-xs text-sky-300 border-b border-sky-900/50 pb-2">
+                <span class="font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-compass text-sky-400"></i> 탐사 수심
+                </span>
+                <span id="depthDisplay" class="font-title text-amber-400 text-sm">수심 100m (연안층)</span>
+            </div>
+
+            <!-- Click Area -->
+            <div id="clickArea" class="relative my-auto flex items-center justify-center cursor-pointer group py-8 w-full">
+                <div class="absolute w-44 h-44 sm:w-52 sm:h-52 rounded-full border-2 border-sky-500/20 animate-ping pointer-events-none"></div>
+                <div class="absolute w-52 h-52 sm:w-60 sm:h-60 rounded-full border border-sky-400/10 pointer-events-none"></div>
+
+                <div class="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-tr from-sky-600 via-blue-500 to-cyan-300 p-1 shadow-2xl shadow-sky-500/40 transform transition-transform active:scale-95 group-hover:scale-105 duration-150 flex items-center justify-center">
+                    <div class="w-full h-full rounded-full bg-slate-950/40 backdrop-blur-sm flex flex-col items-center justify-center border border-white/30 text-center p-2">
+                        <i class="fa-solid fa-dharmachakra text-4xl sm:text-5xl text-cyan-200 drop-shadow-lg mb-1 animate-spin" style="animation-duration: 20s;"></i>
+                        <span class="text-xs sm:text-sm font-bold text-white font-title tracking-wider">채굴기 가동</span>
+                        <span class="text-[10px] text-cyan-300 font-semibold mt-0.5">클릭당 +<span id="clickPowerDisplay">1</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automation Status Bar -->
+            <div class="w-full bg-slate-950/80 p-3 rounded-xl border border-sky-900/40">
+                <div class="flex justify-between text-xs mb-1.5 font-bold">
+                    <span class="text-gray-300">자동화 가동 상태</span>
+                    <span id="autoRateText" class="text-sky-400">수동 탐사 중</span>
+                </div>
+                <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="autoProgressBar" class="h-full bg-gradient-to-r from-sky-500 to-cyan-300 w-0 transition-all duration-200 progress-glow"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Column: Navigation & Upgrades -->
+        <section class="md:col-span-7 glass-panel rounded-2xl p-3 sm:p-4 flex flex-col">
+            <!-- Tabs -->
+            <div class="flex gap-2 border-b border-sky-900/50 pb-2 mb-3">
+                <button id="tabBtnUpgrades" onclick="switchTab('upgrades')" class="px-3 py-1.5 rounded-xl font-title text-xs bg-sky-500 text-slate-950 font-bold transition">
+                    <i class="fa-solid fa-gears mr-1"></i>기지 강화
+                </button>
+                <button id="tabBtnSubmarine" onclick="switchTab('submarine')" class="px-3 py-1.5 rounded-xl font-title text-xs bg-slate-800 text-sky-300 hover:bg-slate-700 font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-submarine text-cyan-400"></i>잠수함 개조
+                </button>
+                <button id="tabBtnRebirth" onclick="switchTab('rebirth')" class="px-3 py-1.5 rounded-xl font-title text-xs bg-slate-800 text-amber-300 hover:bg-slate-700 font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-rotate text-amber-400"></i>환생 센터
+                </button>
+            </div>
+
+            <!-- TAB 1: Base Upgrades -->
+            <div id="tabContentUpgrades" class="flex-1">
+                <div id="upgradeList" class="space-y-2.5 max-h-[440px] overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- TAB 2: Submarine Customization -->
+            <div id="tabContentSubmarine" class="hidden flex-1 space-y-3 max-h-[440px] overflow-y-auto pr-1">
+                <div class="bg-sky-950/60 border border-sky-500/40 rounded-xl p-3 text-xs">
+                    <div class="font-bold text-sky-300 font-title mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-cyan-400"></i>
+                        잠수함 연구실
+                    </div>
+                    <p class="text-gray-300">
+                        환생 시 지급되는 <strong class="text-amber-300">랜덤 잠수함 부품</strong>을 사용하여 능력을 강화하세요.<br>
+                        장착된 부품들은 진주 수집 배율을 더욱 증폭시킵니다!
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-slate-900 border border-sky-800 rounded-xl p-3 flex flex-col justify-between">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-sky-300 font-title"><i class="fa-solid fa-fan mr-1"></i>추진 엔진</span>
+                            <span id="partLevel-engine" class="text-[10px] bg-sky-950 text-cyan-400 px-2 py-0.5 rounded border border-sky-700">Lv.0</span>
+                        </div>
+                        <div id="partStatus-engine" class="text-[11px] text-gray-400 mb-2">장착된 부품 없음 (+0% 배수)</div>
+                        <button onclick="upgradeSubmarinePart('engine')" class="w-full py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold text-xs font-title transition">
+                            부품 강화 (+10% 배수)
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-900 border border-sky-800 rounded-xl p-3 flex flex-col justify-between">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-amber-300 font-title"><i class="fa-solid fa-atom mr-1"></i>심해 원자로</span>
+                            <span id="partLevel-reactor" class="text-[10px] bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-700">Lv.0</span>
+                        </div>
+                        <div id="partStatus-reactor" class="text-[11px] text-gray-400 mb-2">장착된 부품 없음 (+0% 배수)</div>
+                        <button onclick="upgradeSubmarinePart('reactor')" class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs font-title transition">
+                            부품 강화 (+15% 배수)
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-900 border border-sky-800 rounded-xl p-3 flex flex-col justify-between">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-emerald-300 font-title"><i class="fa-solid fa-bore-hole mr-1"></i>초경합금 드릴</span>
+                            <span id="partLevel-drill" class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-700">Lv.0</span>
+                        </div>
+                        <div id="partStatus-drill" class="text-[11px] text-gray-400 mb-2">장착된 부품 없음 (+0% 배수)</div>
+                        <button onclick="upgradeSubmarinePart('drill')" class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs font-title transition">
+                            부품 강화 (+12% 배수)
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-900 border border-sky-800 rounded-xl p-3 flex flex-col justify-between">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-purple-300 font-title"><i class="fa-solid fa-radar mr-1"></i>양자 소나</span>
+                            <span id="partLevel-sonar" class="text-[10px] bg-purple-950 text-purple-400 px-2 py-0.5 rounded border border-purple-700">Lv.0</span>
+                        </div>
+                        <div id="partStatus-sonar" class="text-[11px] text-gray-400 mb-2">장착된 부품 없음 (+0% 배수)</div>
+                        <button onclick="upgradeSubmarinePart('sonar')" class="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-xs font-title transition">
+                            부품 강화 (+20% 배수)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs">
+                    <div class="font-bold text-gray-300 mb-1 flex items-center justify-between">
+                        <span>보유 중인 특수 잠수함 부품 스크랩:</span>
+                        <span id="partsScrapCount" class="text-amber-400 font-title text-sm">0 개</span>
+                    </div>
+                    <p class="text-[10px] text-gray-400">환생 시 진주 보유량과 환생 횟수에 맞춰 무작위 잠수함 부품 스크랩을 획득합니다.</p>
+                </div>
+            </div>
+
+            <!-- TAB 3: Rebirth System -->
+            <div id="tabContentRebirth" class="hidden flex-1 space-y-4 max-h-[440px] overflow-y-auto pr-1">
+                <div class="bg-amber-950/40 border-2 border-amber-500/50 rounded-2xl p-4 text-center">
+                    <div class="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-400 text-2xl mx-auto mb-2 animate-bounce">
+                        <i class="fa-solid fa-rotate"></i>
+                    </div>
+                    <h3 class="text-lg font-black font-title text-amber-300 mb-1">심해 심층 환생 (Rebirth)</h3>
+                    <p class="text-xs text-gray-300 mb-3">
+                        보유한 진주와 기지 장비를 모두 초기화하고 <br>
+                        <strong class="text-amber-300">영구 진주 수집 배율 (x2, x4, x8...)</strong>과 <strong class="text-cyan-300">잠수함 부품</strong>을 얻습니다!
+                    </p>
+
+                    <div class="bg-slate-950 p-3 rounded-xl border border-amber-900/60 mb-3 text-xs space-y-1 text-left">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">환생 최소 조건:</span>
+                            <span id="rebirthRequiredPearls" class="text-amber-400 font-bold font-title">100,000 진주</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">현재 환생 단계:</span>
+                            <span id="rebirthCurrentTier" class="text-sky-300 font-bold">0 회</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">다음 환생 적용 배율:</span>
+                            <span id="rebirthNextMultiplier" class="text-emerald-400 font-bold font-title">2 배</span>
+                        </div>
+                    </div>
+
+                    <button onclick="performRebirth()" id="rebirthBtn" class="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black font-title text-base rounded-xl shadow-lg shadow-amber-500/30 transition active:scale-95">
+                        심해 환생 실행하기 (+부품 획득)
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Bottom Sticky Footer Menu -->
+    <footer class="fixed bottom-0 left-0 right-0 w-full max-w-5xl mx-auto glass-panel rounded-t-2xl p-2.5 sm:p-3 text-xs z-30 flex justify-between items-center border-t border-sky-400/40">
+        <div class="flex items-center gap-2">
+            <button onclick="openLeaderboard()" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-sky-500/50 rounded-xl text-sky-300 font-bold flex items-center gap-1.5 transition active:scale-95">
+                <i class="fa-solid fa-trophy text-amber-400"></i>
+                <span>랭킹</span>
+            </button>
+            <button onclick="saveProgressManual()" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-emerald-500/50 rounded-xl text-emerald-300 font-bold flex items-center gap-1.5 transition active:scale-95">
+                <i class="fa-solid fa-floppy-disk text-emerald-400"></i>
+                <span>저장</span>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="logoutAccount()" class="px-3 py-2 bg-red-950 hover:bg-red-900 border border-red-500/50 rounded-xl text-red-300 font-bold flex items-center gap-1.5 transition active:scale-95">
+                <i class="fa-solid fa-right-from-bracket text-red-400"></i>
+                <span>로그아웃</span>
+            </button>
+            <span class="hidden sm:inline-block font-mono text-[11px] text-sky-400/70 font-semibold bg-slate-950/80 px-2.5 py-1 rounded-lg border border-sky-900/60">
+                v0.4.1
+            </span>
+        </div>
+    </footer>
+
+    <!-- MODALS -->
+    <!-- Modal 1: Auth -->
+    <div id="authModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 sm:p-8 text-center border-2 border-sky-500/50 shadow-2xl relative">
+            <div class="w-14 h-14 bg-sky-500/20 border border-sky-400 rounded-2xl flex items-center justify-center text-sky-300 text-2xl mx-auto mb-3 shadow-lg shadow-sky-500/30">
+                <i class="fa-solid fa-user-shield"></i>
+            </div>
+            
+            <div class="flex justify-center gap-4 mb-4 border-b border-sky-900/60 pb-3">
+                <button type="button" id="modeBtnLogin" onclick="setAuthMode('login')" class="text-sm font-bold font-title text-sky-300 border-b-2 border-sky-400 pb-1">기존 대원 로그인</button>
+                <button type="button" id="modeBtnRegister" onclick="setAuthMode('register')" class="text-sm font-bold font-title text-gray-400 pb-1">신규 대원 등록</button>
+            </div>
+
+            <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3 mb-2">
+                <div>
+                    <input type="text" id="authNicknameInput" maxlength="10" placeholder="닉네임 (2~10자)" required
+                        class="w-full px-4 py-2.5 bg-slate-950 border border-sky-500/60 rounded-xl text-center text-base font-bold text-sky-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <input type="password" id="authPasswordInput" maxlength="20" placeholder="비밀번호 입력" required
+                        class="w-full px-4 py-2.5 bg-slate-950 border border-sky-500/60 rounded-xl text-center text-base font-bold text-sky-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <button type="submit" id="authSubmitBtn" class="w-full py-3 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 rounded-xl font-bold font-title text-slate-950 shadow-lg shadow-sky-500/40 transition flex items-center justify-center gap-2">
+                    <span id="authBtnText">탐사대 로그인</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Dual -->
+    <div id="duelModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 border border-purple-500/60 shadow-2xl relative">
+            <div class="flex justify-between items-center border-b border-purple-900/60 pb-3 mb-3">
+                <h3 class="text-base sm:text-lg font-black font-title text-purple-300 flex items-center gap-2">
+                    <i class="fa-solid fa-swords text-amber-400"></i> 실시간 1v1 듀얼 배틀
+                </h3>
+                <button onclick="closeDuelModal()" class="text-gray-400 hover:text-white text-lg w-7 h-7 rounded-full bg-slate-900 border border-gray-700 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="duelLobbyView" class="space-y-4 text-center py-4">
+                <p class="text-xs text-gray-300">1v1 스피드 클릭 대결에 참여하세요!</p>
+                <button onclick="alert('듀얼 매칭 기능 준비 중입니다.')" class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold font-title rounded-xl shadow-lg hover:from-purple-500 hover:to-indigo-500 transition">
+                    빠른 대결 시작
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Leaderboard -->
+    <div id="leaderboardModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 border border-sky-500/60 shadow-2xl relative">
+            <div class="flex justify-between items-center border-b border-sky-900/60 pb-3 mb-3">
+                <h3 class="text-base sm:text-lg font-black font-title text-sky-300 flex items-center gap-2">
+                    <i class="fa-solid fa-trophy text-amber-400"></i> 탐사대원 랭킹 Board
+                </h3>
+                <button onclick="closeLeaderboard()" class="text-gray-400 hover:text-white text-lg w-7 h-7 rounded-full bg-slate-900 border border-gray-700 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="leaderboardList" class="max-h-80 overflow-y-auto space-y-2 pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Code -->
+    <div id="codeModal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-5 border border-cyan-500/60 shadow-2xl relative text-center">
+            <div class="flex justify-between items-center border-b border-cyan-900/60 pb-3 mb-4">
+                <h3 class="text-base font-black font-title text-cyan-300 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-300"></i> 보상 코드 입력
+                </h3>
+                <button onclick="closeCodeModal()" class="text-gray-400 hover:text-white text-lg w-7 h-7 rounded-full bg-slate-900 border border-gray-700 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-gray-300 mb-3">4자리 프로모션/이벤트 코드를 입력하고 보상을 획득하세요!<br><span class="text-[10px] text-amber-400">(서버 전체 선착순 1회용 코드)</span></p>
+            <form onsubmit="handleRedeemCode(event)" class="space-y-3">
+                <input type="text" id="redeemCodeInput" maxlength="4" placeholder="4자리 코드 입력 (예: 1234)" required
+                    class="w-full px-4 py-2.5 bg-slate-950 border border-cyan-500/60 rounded-xl text-center font-mono font-bold text-xl uppercase tracking-widest text-amber-300 focus:outline-none focus:border-cyan-400">
+                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 rounded-xl font-bold font-title text-slate-950 shadow-lg shadow-cyan-500/30 transition">
+                    보상 입력 적용하기
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 5: Admin Code -->
+    <div id="adminCodeModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-5 border-2 border-purple-500/60 shadow-2xl relative text-xs">
+            <div class="flex justify-between items-center border-b border-purple-900/60 pb-3 mb-3">
+                <h3 class="text-base font-black font-title text-purple-300 flex items-center gap-2">
+                    <i class="fa-solid fa-crown text-amber-400"></i> 관리자 전용 4자리 쿠폰 코드 생성/관리
+                </h3>
+                <button onclick="closeAdminCodeModal()" class="text-gray-400 hover:text-white text-lg w-7 h-7 rounded-full bg-slate-900 border border-gray-700 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAdminCreateCode(event)" class="space-y-3 mb-4 bg-slate-950/80 p-3 rounded-xl border border-purple-900">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-400 font-bold mb-1">4자리 코드</label>
+                        <input type="text" id="adminNewCodeInput" maxlength="4" placeholder="예: 7777" required
+                            class="w-full px-3 py-1.5 bg-slate-900 border border-purple-500/50 rounded-lg font-mono font-bold text-center text-amber-300 uppercase focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-400 font-bold mb-1">보상 종류</label>
+                        <select id="adminRewardTypeSelect" class="w-full px-2 py-1.5 bg-slate-900 border border-purple-500/50 rounded-lg text-white font-bold focus:outline-none">
+                            <option value="pearls">심해 진주</option>
+                            <option value="click">클릭 파워</option>
+                            <option value="cps">초당 자동 수집 (CPS)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-gray-400 font-bold mb-1">보상 수량</label>
+                    <input type="number" id="adminRewardAmountInput" placeholder="예: 50000" min="1" required
+                        class="w-full px-3 py-1.5 bg-slate-900 border border-purple-500/50 rounded-lg font-bold text-center text-emerald-300 focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold font-title rounded-lg shadow-md transition">
+                    새 4자리 쿠폰 코드 생성하기
+                </button>
+            </form>
+            <div class="font-bold text-gray-300 mb-2 font-title flex justify-between items-center">
+                <span>등록된 쿠폰 코드 목록</span>
+                <button onclick="loadAdminCodeList()" class="text-[10px] bg-slate-900 border border-purple-700 px-2 py-0.5 rounded text-purple-300 hover:bg-slate-800">새로고침</button>
+            </div>
+            <div id="adminCodeList" class="max-h-40 overflow-y-auto space-y-1.5 pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-sky-900/90 border border-sky-400 text-sky-100 px-4 py-2 rounded-full text-xs font-bold shadow-2xl pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4 z-50">
+        저장 완료!
+    </div>
+
+    <!-- Engine Scripts -->
+    <script>
+        const ADMIN_NICKNAME = "큐티 냉면 박지후";
+        let currentAuthMode = "login";
+
+        let player = {
+            nickname: "",
+            password: "",
+            pearls: 0,
+            clickPower: 1,
+            cps: 0,
+            extraClick: 0,
+            extraCps: 0,
+            rebirthCount: 0,
+            subPartsScrap: 0,
+            subParts: { engine: 0, reactor: 0, drill: 0, sonar: 0 },
+            upgrades: {},
+            usedCodes: []
+        };
+
+        const UPGRADES_DATA = [
+            { id: "u1", name: "자동 조개 채집기", baseCost: 15, cps: 1, clickPow: 0, icon: "fa-robot" },
+            { id: "u2", name: "잠수 드론 파티", baseCost: 100, cps: 8, clickPow: 0, icon: "fa-plane-up" },
+            { id: "u3", name: "티타늄 드릴 드릴링", baseCost: 1100, cps: 0, clickPow: 5, icon: "fa-screwdriver-wrench" },
+            { id: "u4", name: "심해 열수구 기지", baseCost: 12000, cps: 47, clickPow: 0, icon: "fa-volcano" },
+            { id: "u5", name: "크라켄 자동 훈련소", baseCost: 130000, cps: 260, clickPow: 0, icon: "fa-tent" },
+            { id: "u6", name: "아틀란티스 유적 채굴기", baseCost: 1400000, cps: 1400, clickPow: 50, icon: "fa-landmark" },
+            { id: "u7", name: "크라켄 심해 에너지 구체", baseCost: 15000000, cps: 7800, clickPow: 200, icon: "fa-circle-radiation" },
+            { id: "u8", name: "지구 핵열 매니폴드", baseCost: 200000000, cps: 45000, clickPow: 1000, icon: "fa-fire-glow" },
+            { id: "u9", name: "초시공 심해 차원문", baseCost: 3000000000, cps: 320000, clickPow: 5000, icon: "fa-dharmachakra" }
+        ];
+
+        class GameAudio {
+            constructor() { this.ctx = null; }
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playClick() {
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600 + Math.random() * 150, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                } catch(e) {}
+            }
+        }
+        const gameAudio = new GameAudio();
+
+        function loadLocalData() {
+            try {
+                const local = localStorage.getItem('abyss_player_save_v4');
+                if (local) {
+                    const parsed = JSON.parse(local);
+                    player = { ...player, ...parsed };
+                }
+            } catch(e) {}
+
+            checkAdminStatus();
+            document.getElementById('displayNickname').textContent = player.nickname || "로그인 필요";
+            calculateStats();
+            updateSubmarineUI();
+        }
+
+        function saveLocalData() {
+            try {
+                localStorage.setItem('abyss_player_save_v4', JSON.stringify(player));
+            } catch(e) {}
+        }
+
+        function checkAdminStatus() {
+            const isAdmin = player.nickname === ADMIN_NICKNAME;
+            const adminBadge = document.getElementById('adminBadge');
+            const adminPanel = document.getElementById('adminPanel');
+
+            if (isAdmin) {
+                adminBadge.classList.remove('hidden');
+                adminPanel.classList.remove('hidden');
+            } else {
+                adminBadge.classList.add('hidden');
+                adminPanel.classList.add('hidden');
+            }
+        }
+
+        function adminAddPearls(amount) {
+            player.pearls += amount;
+            calculateStats();
+            renderUpgradesList();
+            saveLocalData();
+            showToast(`관리자 권한: 진주 +${amount.toLocaleString()}`);
+        }
+
+        function adminAddClick(amount) {
+            player.extraClick = (player.extraClick || 0) + amount;
+            calculateStats();
+            saveLocalData();
+            showToast(`관리자 권한: 클릭 파워 +${amount.toLocaleString()}`);
+        }
+
+        function adminAddCps(amount) {
+            player.extraCps = (player.extraCps || 0) + amount;
+            calculateStats();
+            saveLocalData();
+            showToast(`관리자 권한: CPS +${amount.toLocaleString()}`);
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tabContentUpgrades').classList.add('hidden');
+            document.getElementById('tabContentSubmarine').classList.add('hidden');
+            document.getElementById('tabContentRebirth').classList.add('hidden');
+
+            document.getElementById('tabBtnUpgrades').className = "px-3 py-1.5 rounded-xl font-title text-xs bg-slate-800 text-sky-300 hover:bg-slate-700 font-bold transition";
+            document.getElementById('tabBtnSubmarine').className = "px-3 py-1.5 rounded-xl font-title text-xs bg-slate-800 text-sky-300 hover:bg-slate-700 font-bold transition flex items-center gap-1";
+            document.getElementById('tabBtnRebirth').className = "px-3 py-1.5 rounded-xl font-title text-xs bg-slate-800 text-amber-300 hover:bg-slate-700 font-bold transition flex items-center gap-1";
+
+            if (tab === 'upgrades') {
+                document.getElementById('tabContentUpgrades').classList.remove('hidden');
+                document.getElementById('tabBtnUpgrades').className = "px-3 py-1.5 rounded-xl font-title text-xs bg-sky-500 text-slate-950 font-bold transition";
+            } else if (tab === 'submarine') {
+                document.getElementById('tabContentSubmarine').classList.remove('hidden');
+                document.getElementById('tabBtnSubmarine').className = "px-3 py-1.5 rounded-xl font-title text-xs bg-cyan-500 text-slate-950 font-bold transition flex items-center gap-1";
+                updateSubmarineUI();
+            } else if (tab === 'rebirth') {
+                document.getElementById('tabContentRebirth').classList.remove('hidden');
+                document.getElementById('tabBtnRebirth').className = "px-3 py-1.5 rounded-xl font-title text-xs bg-amber-500 text-slate-950 font-bold transition flex items-center gap-1";
+                updateRebirthUI();
+            }
+        }
+
+        function openAuthModal() {
+            document.getElementById('authNicknameInput').value = player.nickname || "";
+            document.getElementById('authPasswordInput').value = "";
+            document.getElementById('authModal').classList.remove('hidden');
+        }
+
+        function setAuthMode(mode) {
+            currentAuthMode = mode;
+            if (mode === 'login') {
+                document.getElementById('modeBtnLogin').className = "text-sm font-bold font-title text-sky-300 border-b-2 border-sky-400 pb-1";
+                document.getElementById('modeBtnRegister').className = "text-sm font-bold font-title text-gray-400 pb-1";
+                document.getElementById('authBtnText').textContent = "탐사대 로그인";
+            } else {
+                document.getElementById('modeBtnLogin').className = "text-sm font-bold font-title text-gray-400 pb-1";
+                document.getElementById('modeBtnRegister').className = "text-sm font-bold font-title text-sky-300 border-b-2 border-sky-400 pb-1";
+                document.getElementById('authBtnText').textContent = "신규 대원 가입하기";
+            }
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            gameAudio.init();
+
+            const nick = document.getElementById('authNicknameInput').value.trim();
+            const pass = document.getElementById('authPasswordInput').value.trim();
+
+            if (nick.length < 2 || nick.length > 10) {
+                alert("닉네임은 2자 이상 10자 이하이어야 합니다.");
+                return;
+            }
+            if (!pass) {
+                alert("비밀번호를 입력해 주세요.");
+                return;
+            }
+
+            const btnText = document.getElementById('authBtnText');
+            btnText.textContent = "확인 중...";
+
+            if (window.db) {
+                try {
+                    const playerDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'players', nick);
+                    const docSnap = await window.getDoc(playerDocRef);
+
+                    if (currentAuthMode === 'register') {
+                        if (docSnap.exists()) {
+                            alert("이미 존재하는 닉네임입니다. [기존 대원 로그인]을 이용해주세요.");
+                            btnText.textContent = "신규 대원 가입하기";
+                            return;
+                        }
+
+                        player = {
+                            nickname: nick,
+                            password: pass,
+                            pearls: 0,
+                            clickPower: 1,
+                            cps: 0,
+                            extraClick: 0,
+                            extraCps: 0,
+                            rebirthCount: 0,
+                            subPartsScrap: 0,
+                            subParts: { engine: 0, reactor: 0, drill: 0, sonar: 0 },
+                            upgrades: {},
+                            usedCodes: []
+                        };
+                        await saveProgressManual();
+                        showToast(`가입 완료! 환영합니다 ${nick} 대원님!`);
+                    } else {
+                        if (!docSnap.exists()) {
+                            alert("존재하지 않는 계정입니다. [신규 대원 등록]을 진행해 주세요.");
+                            btnText.textContent = "탐사대 로그인";
+                            return;
+                        }
+
+                        const data = docSnap.data();
+
+                        if (!data.password) {
+                            alert(`기존 유저 계정입니다.\n입력하신 비밀번호 [${pass}]가 자동 저장됩니다!`);
+                        } else if (data.password !== pass) {
+                            alert("비밀번호가 일치하지 않습니다!");
+                            btnText.textContent = "탐사대 로그인";
+                            return;
+                        }
+
+                        player = {
+                            nickname: nick,
+                            password: pass,
+                            pearls: data.pearls || 0,
+                            clickPower: data.clickPower || 1,
+                            cps: data.cps || 0,
+                            extraClick: data.extraClick || 0,
+                            extraCps: data.extraCps || 0,
+                            rebirthCount: data.rebirthCount || 0,
+                            subPartsScrap: data.subPartsScrap || 0,
+                            subParts: data.subParts || { engine: 0, reactor: 0, drill: 0, sonar: 0 },
+                            upgrades: data.upgrades || {},
+                            usedCodes: data.usedCodes || []
+                        };
+
+                        if (!data.password) {
+                            await saveProgressManual();
+                        }
+
+                        showToast(`'${nick}' 계정으로 로그인 되었습니다!`);
+                    }
+                } catch(e) {
+                    console.error("Auth Exception:", e);
+                    player.nickname = nick;
+                    player.password = pass;
+                }
+            }
+
+            document.getElementById('displayNickname').textContent = nick;
+            checkAdminStatus();
+            calculateStats();
+            renderUpgradesList();
+            saveLocalData();
+
+            btnText.textContent = "로그인";
+            document.getElementById('authModal').classList.add('hidden');
+        }
+
+        async function logoutAccount() {
+            if (!player.nickname) {
+                openAuthModal();
+                return;
+            }
+
+            if (!confirm(`로그아웃 하시겠습니까? 데이터는 저장됩니다.`)) return;
+
+            await saveProgressManual();
+            localStorage.removeItem('abyss_player_save_v4');
+
+            player = {
+                nickname: "",
+                password: "",
+                pearls: 0,
+                clickPower: 1,
+                cps: 0,
+                extraClick: 0,
+                extraCps: 0,
+                rebirthCount: 0,
+                subPartsScrap: 0,
+                subParts: { engine: 0, reactor: 0, drill: 0, sonar: 0 },
+                upgrades: {},
+                usedCodes: []
+            };
+
+            document.getElementById('displayNickname').textContent = "로그인 필요";
+            checkAdminStatus();
+            calculateStats();
+            renderUpgradesList();
+            showToast("로그아웃 완료");
+            openAuthModal();
+        }
+
+        function calculateStats() {
+            let rawCps = player.extraCps || 0;
+            let rawClick = 1 + (player.extraClick || 0);
+
+            UPGRADES_DATA.forEach(u => {
+                const count = player.upgrades[u.id] || 0;
+                rawCps += count * u.cps;
+                rawClick += count * u.clickPow;
+            });
+
+            const rebirthMult = Math.pow(2, player.rebirthCount || 0);
+            const parts = player.subParts || { engine: 0, reactor: 0, drill: 0, sonar: 0 };
+            const subMult = 1 + (parts.engine * 0.10) + (parts.reactor * 0.15) + (parts.drill * 0.12) + (parts.sonar * 0.20);
+
+            const totalMult = rebirthMult * subMult;
+
+            player.cps = Math.floor(rawCps * totalMult);
+            player.clickPower = Math.floor(rawClick * totalMult);
+
+            document.getElementById('pearlsDisplay').textContent = Math.floor(player.pearls).toLocaleString();
+            document.getElementById('cpsDisplay').textContent = player.cps.toLocaleString();
+            document.getElementById('clickPowerDisplay').textContent = player.clickPower.toLocaleString();
+
+            document.getElementById('rebirthCountDisplay').textContent = `${player.rebirthCount || 0}환생 (x${rebirthMult})`;
+
+            const depth = 100 + Math.floor(player.pearls / 100);
+            document.getElementById('depthDisplay').textContent = `수심 ${depth.toLocaleString()}m (${getDepthZone(depth)})`;
+            document.getElementById('autoRateText').textContent = player.cps > 0 ? `초당 +${player.cps.toLocaleString()} 수집` : "수동 채굴 중";
+        }
+
+        function getDepthZone(m) {
+            if (m < 500) return "연안층";
+            if (m < 2000) return "중층해역";
+            if (m < 6000) return "점소해역";
+            return "초심해구";
+        }
+
+        document.getElementById('clickArea').addEventListener('click', (e) => {
+            if (!player.nickname) {
+                openAuthModal();
+                return;
+            }
+            gameAudio.init();
+            gameAudio.playClick();
+
+            player.pearls += player.clickPower;
+            calculateStats();
+            renderUpgradesList();
+            saveLocalData();
+
+            createClickBubble(e.clientX, e.clientY, `+${player.clickPower}`);
+        });
+
+        function createClickBubble(x, y, text) {
+            const bubble = document.createElement('div');
+            bubble.className = 'click-bubble text-amber-300 text-xl font-bold drop-shadow-md';
+            bubble.style.left = `${x - 20}px`;
+            bubble.style.top = `${y - 30}px`;
+            bubble.textContent = text;
+            document.body.appendChild(bubble);
+
+            setTimeout(() => bubble.remove(), 1200);
+        }
+
+        function renderUpgradesList() {
+            const container = document.getElementById('upgradeList');
+            container.innerHTML = "";
+
+            UPGRADES_DATA.forEach(u => {
+                const count = player.upgrades[u.id] || 0;
+                const cost = Math.floor(u.baseCost * Math.pow(1.15, count));
+                const canAfford = player.pearls >= cost;
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                    canAfford 
+                        ? 'bg-slate-900/90 border-sky-500/50 hover:border-cyan-400 cursor-pointer shadow-md active:scale-98' 
+                        : 'bg-slate-950/60 border-slate-800 opacity-60'
+                }`;
+
+                card.onclick = () => buyUpgrade(u.id, cost);
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl ${canAfford ? 'bg-sky-500/20 text-sky-300 border border-sky-400' : 'bg-slate-800 text-gray-500'} flex items-center justify-center text-lg">
+                            <i class="fa-solid ${u.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-xs sm:text-sm text-sky-200 flex items-center gap-2">
+                                ${u.name}
+                                <span class="bg-sky-950 text-cyan-400 border border-sky-600/40 text-[10px] px-2 py-0.5 rounded-full font-title">
+                                    Lv. ${count}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-gray-400 mt-0.5">
+                                ${u.cps > 0 ? `초당 +${u.cps}` : ''} ${u.clickPow > 0 ? `클릭 +${u.clickPow}` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="px-3 py-1.5 rounded-xl text-xs font-bold font-title flex items-center gap-1 transition ${
+                        canAfford 
+                            ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-md shadow-amber-400/20' 
+                            : 'bg-slate-800 text-gray-500 cursor-not-allowed'
+                    }">
+                        <i class="fa-solid fa-gem text-[10px]"></i>
+                        ${cost.toLocaleString()}
+                    </button>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function buyUpgrade(id, cost) {
+            if (!player.nickname) {
+                openAuthModal();
+                return;
+            }
+            if (player.pearls >= cost) {
+                gameAudio.init();
+                player.pearls -= cost;
+                player.upgrades[id] = (player.upgrades[id] || 0) + 1;
+
+                calculateStats();
+                renderUpgradesList();
+                saveLocalData();
+            }
+        }
+
+        function updateSubmarineUI() {
+            const parts = player.subParts || { engine: 0, reactor: 0, drill: 0, sonar: 0 };
+            document.getElementById('partLevel-engine').textContent = `Lv.${parts.engine}`;
+            document.getElementById('partStatus-engine').textContent = `추진력 증폭 (+${parts.engine * 10}% 배수)`;
+
+            document.getElementById('partLevel-reactor').textContent = `Lv.${parts.reactor}`;
+            document.getElementById('partStatus-reactor').textContent = `원자력 출력 (+${parts.reactor * 15}% 배수)`;
+
+            document.getElementById('partLevel-drill').textContent = `Lv.${parts.drill}`;
+            document.getElementById('partStatus-drill').textContent = `굴착 효율 (+${parts.drill * 12}% 배수)`;
+
+            document.getElementById('partLevel-sonar').textContent = `Lv.${parts.sonar}`;
+            document.getElementById('partStatus-sonar').textContent = `탐지 주파수 (+${parts.sonar * 20}% 배수)`;
+
+            document.getElementById('partsScrapCount').textContent = `${player.subPartsScrap || 0} 개`;
+        }
+
+        function upgradeSubmarinePart(partName) {
+            if (!player.subPartsScrap || player.subPartsScrap < 1) {
+                alert("부품 스크랩이 부족합니다! 환생 시 획득할 수 있습니다.");
+                return;
+            }
+            player.subPartsScrap -= 1;
+            player.subParts[partName] = (player.subParts[partName] || 0) + 1;
+
+            calculateStats();
+            updateSubmarineUI();
+            saveLocalData();
+            showToast("잠수함 부품 강화 완료!");
+        }
+
+        function updateRebirthUI() {
+            const currentT = player.rebirthCount || 0;
+            const requiredPearls = getRequiredPearlsForRebirth(currentT);
+            document.getElementById('rebirthRequiredPearls').textContent = `${requiredPearls.toLocaleString()} 진주`;
+            document.getElementById('rebirthCurrentTier').textContent = `${currentT} 회`;
+            document.getElementById('rebirthNextMultiplier').textContent = `${Math.pow(2, currentT + 1)} 배`;
+        }
+
+        function getRequiredPearlsForRebirth(rebirthCount) {
+            const basePearls = 100000;
+            return basePearls * Math.pow(2, rebirthCount || 0);
+        }
+
+        function performRebirth() {
+            const requiredPearls = getRequiredPearlsForRebirth(player.rebirthCount || 0);
+
+            if (player.pearls < requiredPearls) {
+                alert(`환생을 하려면 최소 ${requiredPearls.toLocaleString()} 진주가 필요합니다!`);
+                return;
+            }
+
+            if (!confirm(`정말로 심해 환생을 진행하시겠습니까?\n(${requiredPearls.toLocaleString()} 진주가 소모되며 필요 진주가 다음 환생 시 2배로 증가합니다.)\n진주 및 모든 장비 레벨이 초기화되지만, 채굴 배수가 영구히 2배 증가하고 부품을 얻습니다!`)) {
+                return;
+            }
+
+            const grantedScrap = 1 + Math.floor(player.pearls / (requiredPearls * 2));
+            player.subPartsScrap = (player.subPartsScrap || 0) + grantedScrap;
+            player.rebirthCount = (player.rebirthCount || 0) + 1;
+
+            // 진주 및 보상/업그레이드 수치 완전 초기화
+            player.pearls = 0;
+            player.extraClick = 0;
+            player.extraCps = 0;
+            player.upgrades = {};
+
+            // 스탯 즉시 재계산 및 UI 강제 동기화
+            calculateStats();
+            renderUpgradesList();
+            updateSubmarineUI();
+            updateRebirthUI();
+            saveLocalData();
+            saveProgressManual();
+
+            showToast(`환생 성공! 필요 진주 증가 및 부품 스크랩 +${grantedScrap}개 획득!`);
+        }
+
+        function openDuelModal() {
+            if (!player.nickname) {
+                openAuthModal();
+                return;
+            }
+            document.getElementById('duelModal').classList.remove('hidden');
+        }
+
+        function closeDuelModal() {
+            document.getElementById('duelModal').classList.add('hidden');
+        }
+
+        function openCodeModal() {
+            if (!player.nickname) {
+                openAuthModal();
+                return;
+            }
+            document.getElementById('redeemCodeInput').value = "";
+            document.getElementById('codeModal').classList.remove('hidden');
+        }
+
+        function closeCodeModal() {
+            document.getElementById('codeModal').classList.add('hidden');
+        }
+
+        async function handleRedeemCode(e) {
+            e.preventDefault();
+            const inputCode = document.getElementById('redeemCodeInput').value.trim().toUpperCase();
+
+            if (inputCode.length !== 4) {
+                alert("코드는 정확히 4자리이어야 합니다!");
+                return;
+            }
+
+            if (!window.db) {
+                alert("서버 연결에 실패하였습니다.");
+                return;
+            }
+
+            try {
+                const codeDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'promo_codes', inputCode);
+                const snap = await window.getDoc(codeDocRef);
+
+                if (!snap.exists()) {
+                    alert("존재하지 않거나 이미 다른 사용자가 사용한 선착순 코드입니다!");
+                    return;
+                }
+
+                const data = snap.data();
+                if (data.isUsed) {
+                    alert("이미 서버에서 누군가 사용 완료한 선착순 코드입니다!");
+                    return;
+                }
+
+                const amount = Number(data.amount) || 0;
+
+                if (data.type === 'pearls') {
+                    player.pearls += amount;
+                    showToast(`🎁 보상 지급: 진주 +${amount.toLocaleString()}개!`);
+                } else if (data.type === 'click') {
+                    player.extraClick = (player.extraClick || 0) + amount;
+                    showToast(`🎁 보상 지급: 클릭 파워 +${amount.toLocaleString()}!`);
+                } else if (data.type === 'cps') {
+                    player.extraCps = (player.extraCps || 0) + amount;
+                    showToast(`🎁 보상 지급: CPS +${amount.toLocaleString()}!`);
+                }
+
+                if (!player.usedCodes) player.usedCodes = [];
+                player.usedCodes.push(inputCode);
+
+                // Delete code from global DB so nobody else can use it (or mark as used)
+                await window.deleteDoc(codeDocRef);
+
+                calculateStats();
+                saveLocalData();
+                saveProgressManual();
+                closeCodeModal();
+            } catch(e) {
+                console.error("Redeem Error:", e);
+                alert("코드 적용 중 오류가 발생했습니다.");
+            }
+        }
+
+        function openAdminCodeModal() {
+            document.getElementById('adminNewCodeInput').value = "";
+            document.getElementById('adminRewardAmountInput').value = "";
+            document.getElementById('adminCodeModal').classList.remove('hidden');
+            loadAdminCodeList();
+        }
+
+        function closeAdminCodeModal() {
+            document.getElementById('adminCodeModal').classList.add('hidden');
+        }
+
+        async function handleAdminCreateCode(e) {
+            e.preventDefault();
+            const code = document.getElementById('adminNewCodeInput').value.trim().toUpperCase();
+            const type = document.getElementById('adminRewardTypeSelect').value;
+            const amount = Number(document.getElementById('adminRewardAmountInput').value);
+
+            if (code.length !== 4) {
+                alert("코드는 4자리 입력 필수입니다!");
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert("올바른 보상 수량을 입력해주세요.");
+                return;
+            }
+
+            if (!window.db) return;
+
+            try {
+                const codeDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'promo_codes', code);
+                await window.setDoc(codeDocRef, {
+                    code: code,
+                    type: type,
+                    amount: amount,
+                    isUsed: false,
+                    createdBy: player.nickname,
+                    createdAt: window.serverTimestamp()
+                });
+
+                showToast(`선착순 1회용 코드 [${code}] 생성 성공!`);
+                document.getElementById('adminNewCodeInput').value = "";
+                document.getElementById('adminRewardAmountInput').value = "";
+                loadAdminCodeList();
+            } catch(e) {
+                console.error("Code Create Exception:", e);
+                alert("코드 생성 중 오류 발생");
+            }
+        }
+
+        async function loadAdminCodeList() {
+            const listEl = document.getElementById('adminCodeList');
+            if (!window.db) {
+                listEl.innerHTML = `<div class="text-center py-2 text-red-400">DB 연결 불가</div>`;
+                return;
+            }
+
+            try {
+                const colRef = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'promo_codes');
+                const snap = await window.getDocs(colRef);
+                listEl.innerHTML = "";
+
+                if (snap.empty) {
+                    listEl.innerHTML = `<div class="text-center py-3 text-gray-400">생성된 코드가 없습니다.</div>`;
+                    return;
+                }
+
+                snap.forEach(d => {
+                    const data = d.data();
+                    const row = document.createElement('div');
+                    row.className = "bg-slate-900 p-2 rounded-lg border border-purple-900/60 flex justify-between items-center";
+
+                    let typeText = "진주";
+                    if (data.type === 'click') typeText = "클릭파워";
+                    if (data.type === 'cps') typeText = "CPS";
+
+                    row.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono font-bold text-amber-300 text-sm bg-purple-950 px-2 py-0.5 rounded border border-purple-700">${data.code}</span>
+                            <span class="text-gray-300 font-bold">${typeText} +${Number(data.amount).toLocaleString()}</span>
+                        </div>
+                        <button onclick="deleteAdminCode('${data.code}')" class="text-[10px] bg-red-950 hover:bg-red-900 text-red-300 border border-red-700 px-2 py-1 rounded">
+                            삭제
+                        </button>
+                    `;
+                    listEl.appendChild(row);
+                });
+            } catch(e) {
+                listEl.innerHTML = `<div class="text-center py-2 text-red-400">불러오기 오류</div>`;
+            }
+        }
+
+        async function deleteAdminCode(code) {
+            if (!confirm(`코드 [${code}]를 삭제하시겠습니까?`)) return;
+            if (!window.db) return;
+            try {
+                const codeDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'promo_codes', code);
+                await window.deleteDoc(codeDocRef);
+                showToast(`코드 [${code}] 삭제 완료`);
+                loadAdminCodeList();
+            } catch(e) {}
+        }
+
+        async function saveProgressManual() {
+            if (!player.nickname) return;
+            saveLocalData();
+            if (window.db) {
+                try {
+                    const playerDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'players', player.nickname);
+                    await window.setDoc(playerDocRef, {
+                        nickname: player.nickname,
+                        password: player.password || "",
+                        pearls: Math.floor(player.pearls),
+                        cps: player.cps,
+                        clickPower: player.clickPower,
+                        extraClick: player.extraClick || 0,
+                        extraCps: player.extraCps || 0,
+                        rebirthCount: player.rebirthCount || 0,
+                        subPartsScrap: player.subPartsScrap || 0,
+                        subParts: player.subParts || { engine: 0, reactor: 0, drill: 0, sonar: 0 },
+                        upgrades: player.upgrades,
+                        usedCodes: player.usedCodes || []
+                    }, { merge: true });
+                } catch(e){}
+            }
+            showToast("안전하게 저장되었습니다!");
+        }
+
+        let autoProgress = 0;
+        function startIdleLoop() {
+            setInterval(() => {
+                if (player.nickname && player.cps > 0) {
+                    player.pearls += player.cps / 10;
+                    autoProgress = (autoProgress + 10) % 100;
+                    document.getElementById('autoProgressBar').style.width = `${autoProgress}%`;
+                } else {
+                    document.getElementById('autoProgressBar').style.width = '0%';
+                }
+
+                document.getElementById('pearlsDisplay').textContent = Math.floor(player.pearls).toLocaleString();
+                renderUpgradesList();
+            }, 100);
+
+            setInterval(() => {
+                if (player.nickname) {
+                    saveProgressManual();
+                }
+            }, 15000);
+        }
+
+        async function openLeaderboard() {
+            const modal = document.getElementById('leaderboardModal');
+            const list = document.getElementById('leaderboardList');
+            modal.classList.remove('hidden');
+            list.innerHTML = `<div class="text-center py-6 text-sky-400"><i class="fa-solid fa-spinner animate-spin text-xl"></i><p class="mt-2">랭킹 불러오는 중...</p></div>`;
+
+            let playersData = player.nickname ? [{ nickname: player.nickname, pearls: Math.floor(player.pearls), cps: player.cps, rebirthCount: player.rebirthCount }] : [];
+
+            if (window.db) {
+                try {
+                    const playersCol = window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'players');
+                    const snapshot = await window.getDocs(playersCol);
+                    let dbData = [];
+                    snapshot.forEach(doc => dbData.push(doc.data()));
+                    if (dbData.length > 0) playersData = dbData;
+                } catch(e) {}
+            }
+
+            playersData = playersData.filter(p => p.nickname !== ADMIN_NICKNAME);
+
+            // Updated Sorting Priority: 1. Rebirth Count -> 2. CPS -> 3. Pearls
+            playersData.sort((a, b) => {
+                const rA = a.rebirthCount || 0;
+                const rB = b.rebirthCount || 0;
+                if (rA !== rB) return rB - rA;
+
+                const cpsA = a.cps || 0;
+                const cpsB = b.cps || 0;
+                if (cpsA !== cpsB) return cpsB - cpsA;
+
+                return (b.pearls || 0) - (a.pearls || 0);
+            });
+
+            list.innerHTML = "";
+
+            if (playersData.length === 0) {
+                list.innerHTML = `<div class="text-center py-6 text-gray-400"><p>등록된 대원이 없습니다.</p></div>`;
+                return;
+            }
+
+            const isAdmin = player.nickname === ADMIN_NICKNAME;
+
+            playersData.forEach((p, idx) => {
+                const rank = idx + 1;
+                const isSelf = p.nickname === player.nickname;
+
+                const row = document.createElement('div');
+                row.className = `p-2.5 rounded-xl flex items-center justify-between border ${
+                    isSelf ? 'bg-sky-950 border-sky-400 shadow-md' : 'bg-slate-900/80 border-slate-800'
+                }`;
+
+                let badgeColor = "text-gray-400";
+                if (rank === 1) badgeColor = "text-amber-400 font-bold text-base";
+                else if (rank === 2) badgeColor = "text-slate-300 font-bold text-sm";
+                else if (rank === 3) badgeColor = "text-amber-600 font-bold text-sm";
+
+                let adminDeleteBtn = "";
+                if (isAdmin) {
+                    adminDeleteBtn = `<button onclick="adminDeletePlayer('${p.nickname}')" class="text-[10px] bg-red-950 hover:bg-red-900 text-red-300 border border-red-700/80 px-2 py-0.5 rounded font-bold ml-2 transition">삭제</button>`;
+                }
+
+                row.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-5 text-center font-title ${badgeColor}">${rank}</span>
+                        <div>
+                            <div class="font-bold text-sky-200 flex items-center gap-1">
+                                ${p.nickname || "익명"}
+                                ${p.rebirthCount ? `<span class="text-[9px] bg-amber-500/30 text-amber-300 border border-amber-500/50 px-1 rounded font-title">${p.rebirthCount}환생</span>` : ''}
+                                ${isSelf ? '<span class="text-[9px] bg-sky-500 text-slate-950 font-black px-1 rounded">나</span>' : ''}
+                            </div>
+                            <div class="text-[10px] text-gray-400">초당 +${(p.cps || 0).toLocaleString()} CPS</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 font-title text-amber-300 font-bold text-xs">
+                        <span><i class="fa-solid fa-gem text-[10px]"></i> ${(p.pearls || 0).toLocaleString()}</span>
+                        ${adminDeleteBtn}
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        async function adminDeletePlayer(targetNick) {
+            if (player.nickname !== ADMIN_NICKNAME) return;
+            if (!confirm(`[어드민 권한] 유저 '${targetNick}' 대원을 정말로 DB에서 영구 삭제하시겠습니까?`)) return;
+
+            if (window.db) {
+                try {
+                    const playerDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'players', targetNick);
+                    await window.deleteDoc(playerDocRef);
+                    showToast(`'${targetNick}' 유저가 랭킹에서 삭제되었습니다.`);
+                    openLeaderboard();
+                } catch(e) {
+                    alert("유저 삭제 실패!");
+                }
+            }
+        }
+
+        function closeLeaderboard() {
+            document.getElementById('leaderboardModal').classList.add('hidden');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-4');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-4');
+            }, 2000);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadLocalData();
+            renderUpgradesList();
+            startIdleLoop();
+
+            if (!player.nickname) {
+                openAuthModal();
+            }
+        });
+    </script>
+</body>
+</html>
